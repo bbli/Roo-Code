@@ -1368,6 +1368,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				codebaseIndexEmbedderProvider: "openai",
 				codebaseIndexEmbedderBaseUrl: "",
 				codebaseIndexEmbedderModelId: "",
+				codebaseIndexRoot: "",
 			}
 			await updateGlobalState("codebaseIndexConfig", codebaseIndexConfig)
 

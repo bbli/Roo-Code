@@ -113,9 +113,13 @@ export class CodeIndexManager {
 			return { requiresRestart }
 		}
 
+		// --- Use indexRoot if set, otherwise fallback to workspacePath ---
+		const indexRoot = this._configManager.currentIndexRoot ?? this.workspacePath
+		console.log(`[CodeIndexManager] Using index root: ${indexRoot}`)
+
 		// 3. CacheManager Initialization
 		if (!this._cacheManager) {
-			this._cacheManager = new CacheManager(this.context, this.workspacePath)
+			this._cacheManager = new CacheManager(this.context, indexRoot)
 			await this._cacheManager.initialize()
 		}
 
@@ -129,14 +133,10 @@ export class CodeIndexManager {
 			}
 
 			// (Re)Initialize service factory
-			this._serviceFactory = new CodeIndexServiceFactory(
-				this._configManager,
-				this.workspacePath,
-				this._cacheManager,
-			)
+			this._serviceFactory = new CodeIndexServiceFactory(this._configManager, indexRoot, this._cacheManager)
 
 			const ignoreInstance = ignore()
-			const ignorePath = path.join(getWorkspacePath(), ".gitignore")
+			const ignorePath = path.join(indexRoot, ".gitignore")
 			try {
 				const content = await fs.readFile(ignorePath, "utf8")
 				ignoreInstance.add(content)
@@ -157,7 +157,7 @@ export class CodeIndexManager {
 			this._orchestrator = new CodeIndexOrchestrator(
 				this._configManager,
 				this._stateManager,
-				this.workspacePath,
+				indexRoot,
 				this._cacheManager,
 				vectorStore,
 				scanner,

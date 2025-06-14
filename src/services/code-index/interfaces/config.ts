@@ -15,6 +15,7 @@ export interface CodeIndexConfig {
 	qdrantUrl?: string
 	qdrantApiKey?: string
 	searchMinScore?: number
+	indexRoot?: string // NEW: user-editable index root
 }
 
 /**
@@ -32,4 +33,5 @@ export type PreviousConfigSnapshot = {
 	openAiCompatibleModelDimension?: number
 	qdrantUrl?: string
 	qdrantApiKey?: string
+	indexRoot?: string // NEW: index root for restart detection
 }

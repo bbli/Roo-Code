@@ -458,6 +458,27 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 						</div>
 					</div>
 
+					<div className="flex flex-col gap-3">
+						<div className="flex items-center gap-4 font-bold">
+							<div>{t("settings:codeIndex.indexRootLabel")}</div>
+						</div>
+						<div>
+							<VSCodeTextField
+								value={codebaseIndexConfig?.codebaseIndexRoot || ""}
+								onInput={(e: any) =>
+									setCachedStateField("codebaseIndexConfig", {
+										...codebaseIndexConfig,
+										codebaseIndexRoot: e.target.value,
+									})
+								}
+								placeholder={t("settings:codeIndex.indexRootPlaceholder")}
+								style={{ width: "100%" }}></VSCodeTextField>
+							<p className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:codeIndex.indexRootDescription")}
+							</p>
+						</div>
+					</div>
+
 					{(!areSettingsCommitted || !validateIndexingConfig(codebaseIndexConfig, apiConfiguration)) && (
 						<p className="text-sm text-vscode-descriptionForeground mb-2">
 							{t("settings:codeIndex.unsavedSettingsMessage")}

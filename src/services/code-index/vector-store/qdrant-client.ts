@@ -13,6 +13,7 @@ export class QdrantVectorStore implements IVectorStore {
 	private readonly QDRANT_URL = "http://localhost:6333"
 	private readonly vectorSize!: number
 	private readonly DISTANCE_METRIC = "Cosine"
+	private readonly indexRoot: string
 
 	private client: QdrantClient
 	private readonly collectionName: string
@@ -22,7 +23,7 @@ export class QdrantVectorStore implements IVectorStore {
 	 * @param workspacePath Path to the workspace
 	 * @param url Optional URL to the Qdrant server
 	 */
-	constructor(workspacePath: string, url: string, vectorSize: number, apiKey?: string) {
+	constructor(indexRoot: string, url: string, vectorSize: number, apiKey?: string) {
 		this.client = new QdrantClient({
 			url: url ?? this.QDRANT_URL,
 			apiKey,
@@ -31,8 +32,9 @@ export class QdrantVectorStore implements IVectorStore {
 			},
 		})
 
-		// Generate collection name from workspace path
-		const hash = createHash("sha256").update(workspacePath).digest("hex")
+		this.indexRoot = indexRoot
+		// Generate collection name from index root
+		const hash = createHash("sha256").update(indexRoot).digest("hex")
 		this.vectorSize = vectorSize
 		this.collectionName = `ws-${hash.substring(0, 16)}`
 	}
@@ -242,9 +244,8 @@ export class QdrantVectorStore implements IVectorStore {
 		}
 
 		try {
-			const workspaceRoot = getWorkspacePath()
 			const normalizedPaths = filePaths.map((filePath) => {
-				const absolutePath = path.resolve(workspaceRoot, filePath)
+				const absolutePath = path.resolve(this.indexRoot, filePath)
 				return path.normalize(absolutePath)
 			})
 

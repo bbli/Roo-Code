@@ -10,6 +10,7 @@ describe("CodeIndexConfigManager", () => {
 		mockContextProxy = {
 			getGlobalState: jest.fn(),
 			getSecret: jest.fn().mockReturnValue(undefined),
+			updateGlobalState: jest.fn().mockResolvedValue(undefined),
 		} as unknown as jest.Mocked<ContextProxy>
 
 		configManager = new CodeIndexConfigManager(mockContextProxy)
@@ -42,6 +43,66 @@ describe("CodeIndexConfigManager", () => {
 				searchMinScore: 0.4,
 			})
 			expect(result.requiresRestart).toBe(false)
+		})
+
+		it("should load indexRoot from configuration when present", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderModelId: "text-embedding-3-large",
+				codebaseIndexRoot: "/custom/index/path",
+			}
+			mockContextProxy.getGlobalState.mockReturnValue(mockGlobalState)
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexOpenAiKey") return "test-openai-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(configManager.currentIndexRoot).toBe("/custom/index/path")
+			expect(result.currentConfig.isEnabled).toBe(true)
+		})
+
+		it("should handle empty indexRoot in configuration", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderModelId: "text-embedding-3-large",
+				codebaseIndexRoot: "",
+			}
+			mockContextProxy.getGlobalState.mockReturnValue(mockGlobalState)
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexOpenAiKey") return "test-openai-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(configManager.currentIndexRoot).toBeUndefined()
+			expect(result.currentConfig.isEnabled).toBe(true)
+		})
+
+		it("should handle missing indexRoot in configuration", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderModelId: "text-embedding-3-large",
+				// codebaseIndexRoot is missing
+			}
+			mockContextProxy.getGlobalState.mockReturnValue(mockGlobalState)
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexOpenAiKey") return "test-openai-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(configManager.currentIndexRoot).toBeUndefined()
+			expect(result.currentConfig.isEnabled).toBe(true)
 		})
 
 		it("should load configuration from globalState and secrets", async () => {
@@ -538,6 +599,109 @@ describe("CodeIndexConfigManager", () => {
 				expect(result.requiresRestart).toBe(true)
 			})
 
+			it("should detect restart requirement when indexRoot changes", async () => {
+				// Initial state with indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/original/index/root",
+				})
+				mockContextProxy.getSecret.mockReturnValue("test-key")
+
+				await configManager.loadConfiguration()
+
+				// Change indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/new/index/root",
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should detect restart requirement when indexRoot is added", async () => {
+				// Initial state without indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+				})
+				mockContextProxy.getSecret.mockReturnValue("test-key")
+
+				await configManager.loadConfiguration()
+
+				// Add indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/new/index/root",
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should detect restart requirement when indexRoot is removed", async () => {
+				// Initial state with indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/original/index/root",
+				})
+				mockContextProxy.getSecret.mockReturnValue("test-key")
+
+				await configManager.loadConfiguration()
+
+				// Remove indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should not require restart when indexRoot remains the same", async () => {
+				// Initial state with indexRoot
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/same/index/root",
+				})
+				mockContextProxy.getSecret.mockReturnValue("test-key")
+
+				await configManager.loadConfiguration()
+
+				// Keep indexRoot the same, change unrelated setting
+				mockContextProxy.getGlobalState.mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://qdrant.local",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexRoot: "/same/index/root",
+					codebaseIndexSearchMinScore: 0.5, // Changed unrelated setting
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(false)
+			})
+
 			it("should not require restart when modelDimension remains the same", async () => {
 				// Initial state with modelDimension
 				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
@@ -939,10 +1103,12 @@ describe("CodeIndexConfigManager", () => {
 				embedderProvider: "openai",
 				modelId: "text-embedding-3-large",
 				openAiOptions: { openAiNativeApiKey: "test-openai-key" },
-				ollamaOptions: { ollamaBaseUrl: undefined },
+				ollamaOptions: { ollamaBaseUrl: "" },
+				openAiCompatibleOptions: undefined,
 				qdrantUrl: "http://qdrant.local",
 				qdrantApiKey: "test-qdrant-key",
 				searchMinScore: 0.4,
+				indexRoot: undefined,
 			})
 		})
 
@@ -963,6 +1129,111 @@ describe("CodeIndexConfigManager", () => {
 
 		it("should return correct model ID", () => {
 			expect(configManager.currentModelId).toBe("text-embedding-3-large")
+		})
+		it("should allow setting and getting a custom index root", async () => {
+			const customRoot = "/custom/index/root"
+			await configManager.setIndexRoot(customRoot)
+			expect(configManager.currentIndexRoot).toBe(customRoot)
+		})
+	})
+
+	describe("indexRoot functionality", () => {
+		beforeEach(async () => {
+			// Setup basic configuration for indexRoot tests
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderModelId: "text-embedding-3-large",
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexOpenAiKey") return "test-openai-key"
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+		})
+
+		it("should return undefined when no indexRoot is set", () => {
+			expect(configManager.currentIndexRoot).toBeUndefined()
+		})
+
+		it("should persist indexRoot to global state when set", async () => {
+			const customRoot = "/custom/index/root"
+			const existingConfig = { someOtherSetting: "value" }
+
+			mockContextProxy.getGlobalState.mockReturnValue(existingConfig)
+
+			await configManager.setIndexRoot(customRoot)
+
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("codebaseIndexConfig", {
+				...existingConfig,
+				codebaseIndexRoot: customRoot,
+			})
+			expect(configManager.currentIndexRoot).toBe(customRoot)
+		})
+
+		it("should handle setIndexRoot when no existing config exists", async () => {
+			const customRoot = "/custom/index/root"
+
+			mockContextProxy.getGlobalState.mockReturnValue(undefined)
+
+			await configManager.setIndexRoot(customRoot)
+
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("codebaseIndexConfig", {
+				codebaseIndexRoot: customRoot,
+			})
+			expect(configManager.currentIndexRoot).toBe(customRoot)
+		})
+
+		it("should handle setIndexRoot when contextProxy is undefined", async () => {
+			const configManagerWithoutProxy = new CodeIndexConfigManager(undefined as any)
+			const customRoot = "/custom/index/root"
+
+			// Should not throw an error
+			await expect(configManagerWithoutProxy.setIndexRoot(customRoot)).resolves.toBeUndefined()
+			expect(configManagerWithoutProxy.currentIndexRoot).toBe(customRoot)
+		})
+
+		it("should update indexRoot in memory immediately", async () => {
+			const customRoot = "/custom/index/root"
+
+			await configManager.setIndexRoot(customRoot)
+
+			// Should be available immediately without needing to reload configuration
+			expect(configManager.currentIndexRoot).toBe(customRoot)
+		})
+
+		it("should overwrite existing indexRoot when set multiple times", async () => {
+			const firstRoot = "/first/root"
+			const secondRoot = "/second/root"
+
+			await configManager.setIndexRoot(firstRoot)
+			expect(configManager.currentIndexRoot).toBe(firstRoot)
+
+			await configManager.setIndexRoot(secondRoot)
+			expect(configManager.currentIndexRoot).toBe(secondRoot)
+
+			// Should have been called twice
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledTimes(2)
+		})
+
+		it("should preserve other config values when setting indexRoot", async () => {
+			const customRoot = "/custom/index/root"
+			const existingConfig = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://custom.qdrant",
+				someOtherSetting: "preserve-me",
+			}
+
+			mockContextProxy.getGlobalState.mockReturnValue(existingConfig)
+
+			await configManager.setIndexRoot(customRoot)
+
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("codebaseIndexConfig", {
+				...existingConfig,
+				codebaseIndexRoot: customRoot,
+			})
 		})
 	})
 

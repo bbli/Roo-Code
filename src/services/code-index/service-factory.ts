@@ -16,9 +16,11 @@ import { Ignore } from "ignore"
 export class CodeIndexServiceFactory {
 	constructor(
 		private readonly configManager: CodeIndexConfigManager,
-		private readonly workspacePath: string,
+		private readonly indexRoot: string,
 		private readonly cacheManager: CacheManager,
-	) {}
+	) {
+		console.log(`[CodeIndexServiceFactory] Using index root: ${indexRoot}`)
+	}
 
 	/**
 	 * Creates an embedder instance based on the current configuration.
@@ -97,8 +99,8 @@ export class CodeIndexServiceFactory {
 			throw new Error("Qdrant URL missing for vector store creation")
 		}
 
-		// Assuming constructor is updated: new QdrantVectorStore(workspacePath, url, vectorSize, apiKey?)
-		return new QdrantVectorStore(this.workspacePath, config.qdrantUrl, vectorSize, config.qdrantApiKey)
+		// Use indexRoot for QdrantVectorStore
+		return new QdrantVectorStore(this.indexRoot, config.qdrantUrl, vectorSize, config.qdrantApiKey)
 	}
 
 	/**
@@ -123,7 +125,7 @@ export class CodeIndexServiceFactory {
 		cacheManager: CacheManager,
 		ignoreInstance: Ignore,
 	): IFileWatcher {
-		return new FileWatcher(this.workspacePath, context, cacheManager, embedder, vectorStore, ignoreInstance)
+		return new FileWatcher(this.indexRoot, context, cacheManager, embedder, vectorStore, ignoreInstance)
 	}
 
 	/**

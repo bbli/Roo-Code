@@ -19,6 +19,7 @@ export class CodeIndexConfigManager {
 	private qdrantUrl?: string = "http://localhost:6333"
 	private qdrantApiKey?: string
 	private searchMinScore?: number
+	private indexRoot?: string // NEW: user-editable index root
 
 	constructor(private readonly contextProxy: ContextProxy) {
 		// Initialize with current configuration to avoid false restart triggers
@@ -31,13 +32,15 @@ export class CodeIndexConfigManager {
 	 */
 	private _loadAndSetConfiguration(): void {
 		// Load configuration from storage
-		const codebaseIndexConfig = this.contextProxy?.getGlobalState("codebaseIndexConfig") ?? {
+		const codebaseIndexConfig = {
 			codebaseIndexEnabled: false,
 			codebaseIndexQdrantUrl: "http://localhost:6333",
 			codebaseIndexSearchMinScore: 0.4,
 			codebaseIndexEmbedderProvider: "openai",
 			codebaseIndexEmbedderBaseUrl: "",
 			codebaseIndexEmbedderModelId: "",
+			codebaseIndexRoot: "", // NEW: index root
+			...(this.contextProxy?.getGlobalState("codebaseIndexConfig") ?? {}),
 		}
 
 		const {
@@ -46,6 +49,7 @@ export class CodeIndexConfigManager {
 			codebaseIndexEmbedderProvider,
 			codebaseIndexEmbedderBaseUrl,
 			codebaseIndexEmbedderModelId,
+			codebaseIndexRoot, // NEW
 		} = codebaseIndexConfig
 
 		const openAiKey = this.contextProxy?.getSecret("codeIndexOpenAiKey") ?? ""
@@ -62,6 +66,7 @@ export class CodeIndexConfigManager {
 		this.qdrantApiKey = qdrantApiKey ?? ""
 		this.openAiOptions = { openAiNativeApiKey: openAiKey }
 		this.searchMinScore = SEARCH_MIN_SCORE
+		this.indexRoot = codebaseIndexRoot || undefined // NEW
 
 		// Set embedder provider with support for openai-compatible
 		if (codebaseIndexEmbedderProvider === "ollama") {
@@ -120,6 +125,7 @@ export class CodeIndexConfigManager {
 			openAiCompatibleModelDimension: this.openAiCompatibleOptions?.modelDimension,
 			qdrantUrl: this.qdrantUrl ?? "",
 			qdrantApiKey: this.qdrantApiKey ?? "",
+			indexRoot: this.indexRoot ?? "", // NEW: include indexRoot in snapshot
 		}
 
 		// Load new configuration from storage and update instance variables
@@ -187,6 +193,7 @@ export class CodeIndexConfigManager {
 		const prevOpenAiCompatibleModelDimension = prev?.openAiCompatibleModelDimension
 		const prevQdrantUrl = prev?.qdrantUrl ?? ""
 		const prevQdrantApiKey = prev?.qdrantApiKey ?? ""
+		const prevIndexRoot = prev?.indexRoot ?? "" // NEW: previous index root
 
 		// 1. Transition from disabled/unconfigured to enabled+configured
 		if ((!prevEnabled || !prevConfigured) && this.isEnabled && nowConfigured) {
@@ -249,6 +256,12 @@ export class CodeIndexConfigManager {
 			if (prevQdrantUrl !== currentQdrantUrl || prevQdrantApiKey !== currentQdrantApiKey) {
 				return true
 			}
+
+			// Index root changes - NEW
+			const currentIndexRoot = this.indexRoot ?? ""
+			if (prevIndexRoot !== currentIndexRoot) {
+				return true
+			}
 		}
 
 		return false
@@ -295,6 +308,7 @@ export class CodeIndexConfigManager {
 			qdrantUrl: this.qdrantUrl,
 			qdrantApiKey: this.qdrantApiKey,
 			searchMinScore: this.searchMinScore,
+			indexRoot: this.indexRoot, // NEW
 		}
 	}
 
@@ -341,5 +355,24 @@ export class CodeIndexConfigManager {
 	 */
 	public get currentSearchMinScore(): number | undefined {
 		return this.searchMinScore
+	}
+	/**
+	 * Gets the current index root directory (if set).
+	 */
+	public get currentIndexRoot(): string | undefined {
+		return this.indexRoot
+	}
+
+	/**
+	 * Allows updating the index root and persists it.
+	 */
+	public async setIndexRoot(newRoot: string): Promise<void> {
+		this.indexRoot = newRoot
+		const config = this.contextProxy?.getGlobalState("codebaseIndexConfig") ?? {}
+		// Patch type: allow any property for config object
+		;(config as any).codebaseIndexRoot = newRoot
+		if (this.contextProxy) {
+			await this.contextProxy.updateGlobalState("codebaseIndexConfig", config)
+		}
 	}
 }
